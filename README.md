@@ -2,6 +2,23 @@
 
 واجهة ويب RTL لتحويل روابط Google Drive Viewer إلى PDF وصور بدون رفع ملفات من الجهاز.
 
+## إصلاح الاتصال بين الواجهة والمحرك
+
+الإصدار الحالي لا يجعل المتصفح يتصل مباشرة بـ `localhost:8000`.
+الواجهة ترسل الطلبات إلى Next.js على نفس الدومين عبر:
+
+```text
+/api/proxy/...
+```
+
+ثم Next.js يتصل داخليًا بخدمة FastAPI عبر المتغير:
+
+```env
+API_INTERNAL_BASE=http://api:8000
+```
+
+وبذلك لا يحتاج المستخدم إلى الوصول إلى منفذ FastAPI ولا توجد مشكلة CORS بين المتصفح والـAPI.
+
 ## التشغيل السريع عبر Docker
 
 ```bash
@@ -10,50 +27,47 @@ docker compose up --build
 
 ثم افتح:
 
-- Frontend: http://localhost:3000
-- API: http://localhost:8000/docs
+```text
+http://localhost:3000
+```
+
+يمكن اختبار المحرك من داخل حاوية الواجهة عبر البروكسي:
+
+```text
+http://localhost:3000/api/proxy/api/health
+```
+
+المفترض أن يعيد:
+
+```json
+{"ok":true}
+```
 
 ## البنية
 
-- `frontend/` — Next.js 15 + React 19
+- `frontend/` — Next.js + React
 - `backend/` — FastAPI + BeautifulSoup + Pillow
 - `backend/storage/` — الملفات الناتجة مؤقتًا
 
-## ما يدعمه التطبيق
+## نشر الواجهة والـAPI على نفس VPS
 
-- رابط واحد أو عدة روابط
+الأبسط هو تشغيل `docker compose` ووضع Nginx أو Cloudflare أمام المنفذ 3000 فقط. لا يلزم نشر المنفذ 8000 للعامة.
+
+## إذا كانت الواجهة على Vercel والـAPI على VPS
+
+اضبط متغير البيئة في Vercel:
+
+```env
+API_INTERNAL_BASE=https://api.example.com
+```
+
+وفي هذه الحالة يجب أن يكون عنوان FastAPI متاحًا من خوادم Vercel عبر HTTPS. المتصفح نفسه سيستمر في استخدام `/api/proxy` على دومين Vercel.
+
+## المخرجات
+
 - PDF واحد لكل رابط
 - صور PNG لكل رابط
-- PDF + صور
-- تقدم حي لكل رابط
-- تنزيل كل النتائج ZIP
-- استخراج اسم الملف من صفحة العارض قدر الإمكان
-
-## ملاحظة مهمة
-
-المحرك الحالي يعتمد على بنية Google Drive Viewer التي تحتوي عناصر مثل:
-
-```css
-li.vyqwGc[data-page-index]
-img.TH5Red[data-src]
-```
-
-إذا غيّرت Google بنية العارض مستقبلًا، يلزم تحديث selectors في `backend/app/main.py`.
-
-## إعداد الإنتاج
-
-### Frontend
-اضبط:
-
-```env
-NEXT_PUBLIC_API_BASE=https://api.example.com
-```
-
-### Backend
-اضبط:
-
-```env
-CORS_ORIGINS=https://app.example.com
-```
-
-يفضّل تشغيل FastAPI على VPS لأن المعالجة قد تكون طويلة وملفات الصور/PDF قد تكون كبيرة. يمكن نشر Next.js على Vercel أو على نفس الـVPS.
+- PDF + صور ZIP
+- رابط واحد أو عدة روابط
+- تقدم مستقل لكل رابط
+- تنزيل جميع النتائج ZIP
